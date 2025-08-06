@@ -12,3 +12,6 @@ venv.bak/
 __pycache__/
 
 .pytest_cache/
+
+# Trading signals output
+signals.csv

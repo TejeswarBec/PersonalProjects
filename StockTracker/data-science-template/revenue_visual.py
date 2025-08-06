@@ -36,19 +36,60 @@ if __name__ == "__main__":
     if not os.path.exists(symbols_file):
         with open(symbols_file, "w") as f:
             f.write("^NSEI\n")
-    import csv
-    signals_file = os.path.join(script_dir, "signals.csv")
-    # Write header if file does not exist
+
+# --- Signal writing abstraction ---
+import csv
+signals_file = os.path.join(script_dir, "signals.csv")
+def write_signals(signals):
+    """
+    Write signals to CSV. Replace this function with DB logic for minimal update.
+    """
+    # --- CSV logic ---
     if not os.path.exists(signals_file):
         with open(signals_file, "w", newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(["symbol", "timestamp_IST", "action", "price"])
+            writer.writerow(["symbol", "timestamp_IST", "action", "price", "status"])
+    with open(signals_file, "w", newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=["symbol", "timestamp_IST", "action", "price", "status"])
+        writer.writeheader()
+        writer.writerows(signals)
+
+    # --- Uncomment below to write to a SQLite database ---
+    # import sqlite3
+    # db_path = os.path.join(script_dir, "signals.db")
+    # conn = sqlite3.connect(db_path)
+    # c = conn.cursor()
+    # c.execute('''
+    #     CREATE TABLE IF NOT EXISTS signals (
+    #         symbol TEXT,
+    #         timestamp_IST TEXT,
+    #         action TEXT,
+    #         price REAL,
+    #         status TEXT
+    #     )
+    # ''')
+    # c.execute('DELETE FROM signals')  # Remove this line if you want to keep history
+    # for signal in signals:
+    #     c.execute('''
+    #         INSERT INTO signals (symbol, timestamp_IST, action, price, status)
+    #         VALUES (?, ?, ?, ?, ?)
+    #     ''', (signal["symbol"], signal["timestamp_IST"], signal["action"], signal["price"], signal["status"]))
+    # conn.commit()
+    # conn.close()
 
     while True:
         with open(symbols_file, "r") as f:
             symbols = [line.strip() for line in f if line.strip()]
-        latest_signals = []
         ist = pytz.timezone('Asia/Kolkata')
+        # Read previous signals
+        previous_signals = []
+        if os.path.exists(signals_file):
+            with open(signals_file, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    previous_signals.append(row)
+        # Prepare new signals
+        new_signals = []
         for symbol in symbols:
             print(f"\n--- Intraday Analysis for {symbol} ---")
             df = fetch_realtime_stock_data(symbol)
@@ -103,13 +144,21 @@ if __name__ == "__main__":
                 latest_price = float(latest_price.values[0])
             else:
                 latest_price = float(latest_price)
-            latest_signals.append([symbol, str(ts_ist), action, latest_price])
+            new_signals.append({
+                "symbol": symbol,
+                "timestamp_IST": str(ts_ist),
+                "action": action,
+                "price": latest_price,
+                "status": "active"
+            })
             print(f"Latest signal for {symbol}: {action} at {ts_ist} price {latest_price:.2f}")
             sys.stdout.flush()
-        # Overwrite signals.csv with only the latest signals
-        with open(signals_file, "w", newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(["symbol", "timestamp_IST", "action", "price"])
-            writer.writerows(latest_signals)
-        print("\nWaiting 5 minutes before next update...")
-        time.sleep(300)
+        # Mark previous signals as inactive if not in new_signals
+        for old in previous_signals:
+            if not any(ns["symbol"] == old["symbol"] and ns["timestamp_IST"] != old["timestamp_IST"] for ns in new_signals):
+                old["status"] = "inactive"
+                new_signals.append(old)
+        # Write all signals using the abstraction
+        write_signals(new_signals)
+        print("\nWaiting 30 seconds before next update...")
+        time.sleep(30)
