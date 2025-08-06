@@ -38,44 +38,24 @@ if __name__ == "__main__":
             f.write("^NSEI\n")
 
 # --- Signal writing abstraction ---
-import csv
-signals_file = os.path.join(script_dir, "signals.csv")
-def write_signals(signals):
-    """
-    Write signals to CSV. Replace this function with DB logic for minimal update.
-    """
-    # --- CSV logic ---
-    if not os.path.exists(signals_file):
-        with open(signals_file, "w", newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(["symbol", "timestamp_IST", "action", "price", "status"])
-    with open(signals_file, "w", newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=["symbol", "timestamp_IST", "action", "price", "status"])
-        writer.writeheader()
-        writer.writerows(signals)
 
-    # --- Uncomment below to write to a SQLite database ---
-    # import sqlite3
-    # db_path = os.path.join(script_dir, "signals.db")
-    # conn = sqlite3.connect(db_path)
-    # c = conn.cursor()
-    # c.execute('''
-    #     CREATE TABLE IF NOT EXISTS signals (
-    #         symbol TEXT,
-    #         timestamp_IST TEXT,
-    #         action TEXT,
-    #         price REAL,
-    #         status TEXT
-    #     )
-    # ''')
-    # c.execute('DELETE FROM signals')  # Remove this line if you want to keep history
-    # for signal in signals:
-    #     c.execute('''
-    #         INSERT INTO signals (symbol, timestamp_IST, action, price, status)
-    #         VALUES (?, ?, ?, ?, ?)
-    #     ''', (signal["symbol"], signal["timestamp_IST"], signal["action"], signal["price"], signal["status"]))
-    # conn.commit()
-    # conn.close()
+# --- Interfacing for signal writing ---
+
+
+
+import csv
+from csv_signal_writer import CSVSignalWriter
+from db_signal_writer import DBSignalWriter
+
+signals_file = os.path.join(script_dir, "signals.csv")
+db_file = os.path.join(script_dir, "signals.db")
+# Choose writer: CSVSignalWriter or DBSignalWriter
+signal_writer = CSVSignalWriter(signals_file)
+# To use DB, switch to:
+# signal_writer = DBSignalWriter(db_file)
+
+def write_signals(signals):
+    signal_writer.write(signals)
 
     while True:
         with open(symbols_file, "r") as f:
